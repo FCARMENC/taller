@@ -16,6 +16,8 @@
 <meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --bg:#F1F2F4;
@@ -1405,7 +1407,21 @@
       </div>
     </div>
 
-    <div style="text-align:center; color:var(--muted); font-size:11.5px; padding:18px 0 6px;">Mecánica Expert · v5.24.0</div>
+    <div class="settings-block">
+      <h4>Sincronización entre dispositivos</h4>
+      <div class="desc">Comparte el mismo código de taller en todos tus celulares para ver las mismas órdenes, ingresos y clientes en cada uno.</div>
+      <div id="sync-status-text" style="font-size:13px; margin-bottom:10px;"></div>
+      <label style="display:block; font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--muted); margin-bottom:6px;">Código de taller</label>
+      <input type="text" id="sync-shop-code" placeholder="taller-xxxxxxxx" autocapitalize="off" autocorrect="off">
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn secondary" onclick="copyShopCode()">Copiar código</button>
+        <button class="btn secondary" onclick="applyShopCodeInput()">Usar este código</button>
+      </div>
+      <button class="btn" style="margin-top:10px;" onclick="reloadAllFromCloud()">Sincronizar ahora</button>
+      <div class="desc" style="margin-top:10px;">En tu otro celular, abre Ajustes, pega este mismo código en "Código de taller" y toca "Usar este código". Desde ese momento ambos verán la misma información.</div>
+    </div>
+
+    <div style="text-align:center; color:var(--muted); font-size:11.5px; padding:18px 0 6px;">Mecánica Expert · v5.25.0</div>
 
   </div>
 
@@ -1644,6 +1660,121 @@ function initLiveValidation(){
   });
 }
 
+/* ---------- FIREBASE / FIRESTORE (sincronización entre dispositivos) ---------- */
+const firebaseConfig = {
+  apiKey: "AIzaSyD6zSkn1zDle2_EQaRIxXC5c6i9UrJbSaY",
+  authDomain: "mecanica-expert.firebaseapp.com",
+  projectId: "mecanica-expert",
+  storageBucket: "mecanica-expert.firebasestorage.app",
+  messagingSenderId: "702555698787",
+  appId: "1:702555698787:web:9e4771e62171e189eeaa56"
+};
+let cloudDb = null;
+try{
+  if(typeof firebase !== 'undefined'){
+    firebase.initializeApp(firebaseConfig);
+    cloudDb = firebase.firestore();
+    cloudDb.enablePersistence({synchronizeTabs:true}).catch(()=>{ /* ok si falla, seguimos sin caché offline de Firestore */ });
+  }
+}catch(e){ console.error('Firebase init error', e); cloudDb = null; }
+
+const SHOP_CODE_KEY = 'mecanicaExpert_shopCode';
+function generateShopCode(){
+  return 'taller-' + Math.random().toString(36).slice(2,10) + Date.now().toString(36);
+}
+function getShopCode(){
+  let code = null;
+  try{ code = localStorage.getItem(SHOP_CODE_KEY); }catch(e){ /* ignorar */ }
+  if(!code){
+    code = generateShopCode();
+    try{ localStorage.setItem(SHOP_CODE_KEY, code); }catch(e){ /* ignorar */ }
+  }
+  return code;
+}
+function setShopCode(code){
+  try{ localStorage.setItem(SHOP_CODE_KEY, code); }catch(e){ /* ignorar */ }
+}
+let cloudSyncStatus = cloudDb ? 'idle' : 'off'; // idle | syncing | ok | error | off
+let cloudLastSync = null;
+function cloudDoc(key){
+  return cloudDb.collection('talleres').doc(getShopCode()).collection('data').doc(key);
+}
+async function cloudPush(key, payload){
+  if(!cloudDb) return false;
+  try{
+    cloudSyncStatus = 'syncing'; updateSyncStatusUI();
+    await cloudDoc(key).set({ value: payload, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    cloudSyncStatus = 'ok'; cloudLastSync = new Date(); updateSyncStatusUI();
+    return true;
+  }catch(e){
+    console.error('Firestore push error', key, e);
+    cloudSyncStatus = 'error'; updateSyncStatusUI();
+    return false;
+  }
+}
+async function cloudPull(key){
+  if(!cloudDb) return undefined;
+  try{
+    const snap = await cloudDoc(key).get();
+    if(snap.exists && snap.data() && typeof snap.data().value === 'string') return snap.data().value;
+    return undefined;
+  }catch(e){
+    console.error('Firestore pull error', key, e);
+    return undefined;
+  }
+}
+function updateSyncStatusUI(){
+  const el = document.getElementById('sync-status-text');
+  if(!el) return;
+  const map = {
+    idle: 'Sin sincronizar aún',
+    syncing: '⏳ Sincronizando…',
+    ok: cloudLastSync ? ('✅ Sincronizado — ' + cloudLastSync.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})) : '✅ Sincronizado',
+    error: '⚠️ No se pudo sincronizar (revisa tu conexión)',
+    off: '⛔ Sincronización no disponible en este dispositivo'
+  };
+  el.textContent = map[cloudSyncStatus] || '';
+  const codeEl = document.getElementById('sync-shop-code');
+  if(codeEl) codeEl.value = getShopCode();
+}
+async function reloadAllFromCloud(){
+  if(!cloudDb){ toast('Sincronización no disponible'); return; }
+  cloudSyncStatus = 'syncing'; updateSyncStatusUI();
+  try{
+    const [ing, gas, pag, trab, dnl, cotiz, ordenes, citas, cierres, gastosFijos, clientes, settings] = await Promise.all([
+      load('ingresos', []), load('gastos', []), load('pagos', []), load('trabajadores', []), load('diasNoLaborados', []), load('cotizaciones', []), load('ordenes', []), load('citas', []), load('cierres', []), load('gastosFijos', []), load('clientes', []), load('settings', DATA.settings)
+    ]);
+    DATA.ingresos = ing; DATA.gastos = gas; DATA.pagos = pag; DATA.trabajadores = trab; DATA.diasNoLaborados = dnl; DATA.cotizaciones = cotiz; DATA.ordenes = ordenes; DATA.citas = citas; DATA.cierres = cierres; DATA.gastosFijos = gastosFijos; DATA.clientes = clientes;
+    if(settings) DATA.settings = settings;
+    cloudSyncStatus = 'ok'; cloudLastSync = new Date(); updateSyncStatusUI();
+    applyTheme(); applyBranding(); renderAll();
+    toast('Datos actualizados');
+  }catch(e){
+    console.error('reloadAllFromCloud error', e);
+    cloudSyncStatus = 'error'; updateSyncStatusUI();
+    toast('No se pudo sincronizar');
+  }
+}
+function copyShopCode(){
+  const code = getShopCode();
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(code).then(()=>toast('Código copiado')).catch(()=>toast(code));
+  }else{
+    toast(code);
+  }
+}
+function applyShopCodeInput(){
+  const input = document.getElementById('sync-shop-code');
+  if(!input) return;
+  const val = input.value.trim();
+  if(!val){ toast('Escribe un código válido'); return; }
+  setShopCode(val);
+  reloadAllFromCloud();
+}
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible' && cloudDb) reloadAllFromCloud();
+});
+
 const LS_PREFIX = 'mecanicaExpert_';
 const hasCloudStorage = () => (typeof window.storage === 'object' && window.storage !== null && typeof window.storage.set === 'function');
 const memoryStore = {}; // último recurso: sobrevive mientras la pestaña esté abierta, aunque no haya recarga
@@ -1712,6 +1843,7 @@ async function idbGet(key){
 async function save(key, value){
   const payload = JSON.stringify(value);
   idbSet(key, value); // respaldo silencioso en segundo plano, no bloquea el guardado principal
+  if(cloudDb) cloudPush(key, payload); // sincroniza con otros dispositivos, en segundo plano
   if(hasCloudStorage()){
     try{
       const r = await window.storage.set(key, payload, false);
@@ -1734,6 +1866,17 @@ async function save(key, value){
   return false;
 }
 async function load(key, fallback){
+  if(cloudDb){
+    const cloudPayload = await cloudPull(key);
+    if(cloudPayload !== undefined){
+      try{
+        const val = JSON.parse(cloudPayload);
+        idbSet(key, val);
+        if(localStorageWorks()) localStorage.setItem(LS_PREFIX+key, cloudPayload);
+        return val;
+      }catch(e){ console.error('Error al parsear datos de la nube', key, e); }
+    }
+  }
   if(hasCloudStorage()){
     try{
       const r = await window.storage.get(key, false);
@@ -1769,6 +1912,9 @@ async function init(){
   if(!Array.isArray(DATA.settings.diasDescanso)) DATA.settings.diasDescanso = [0];
   if(!DATA.settings.otCounter) DATA.settings.otCounter = 1;
   if(!DATA.settings.cotizCounter) DATA.settings.cotizCounter = 1;
+
+  if(cloudDb){ cloudSyncStatus = 'ok'; cloudLastSync = new Date(); }
+  updateSyncStatusUI();
 
   applyTheme();
   applyBranding();
