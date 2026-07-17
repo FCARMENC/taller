@@ -683,6 +683,7 @@
     </div>
     <input type="password" id="pin-input" inputmode="numeric" maxlength="4" style="opacity:0; position:absolute; pointer-events:none;">
     <div class="pin-keypad" id="pin-keypad"></div>
+    <button class="btn secondary" id="lock-biometric-btn" onclick="attemptBiometricUnlock()" style="margin-top:14px; display:none; align-items:center; justify-content:center; gap:8px;"><span style="width:18px; height:18px; display:inline-flex;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0-6 6v2c0 3.5-1 6-2 7.5"/><path d="M12 3a6 6 0 0 1 6 6v3c0 1 .1 2 .3 3"/><path d="M9 21c1-1.5 1.5-3 1.5-5V9a1.5 1.5 0 0 1 3 0v6"/><path d="M6 21a13 13 0 0 0 1.5-6V9a4.5 4.5 0 0 1 9 0"/><path d="M13.5 21.5c-.5-1-.7-2-.7-3.5v-3"/></svg></span>Usar huella digital</button>
     <button class="btn secondary" id="lock-cancel-btn" onclick="cancelPinFlow()" style="margin-top:16px; display:none;">Cancelar</button>
   </div>
 </div>
@@ -742,8 +743,35 @@
   </div>
 </div>
 
+<!-- OT PAYMENTS (PAGOS/ANTICIPOS) MODAL -->
+<div class="modal-overlay" id="modal-ot-pagos" style="z-index:195;" onclick="if(event.target===this) closeOtPagos()">
+  <div class="modal-box tall detail-modal">
+    <div class="detail-modal-head"><button class="modal-x" onclick="closeOtPagos()" aria-label="Cerrar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="6" y1="18" x2="18" y2="6"/></svg></button></div>
+    <div class="detail-modal-body">
+      <h4 style="margin:0 0 10px;">Pagos de la orden</h4>
+      <div id="otpago-resumen" style="font-size:13px; margin-bottom:14px;"></div>
+      <label>Monto del pago (S/)</label>
+      <input type="number" id="otpago-monto" placeholder="0.00" inputmode="decimal">
+      <label style="margin-top:10px; display:block;">Fecha</label>
+      <input type="date" id="otpago-fecha">
+      <label style="margin-top:10px; display:block;">Forma de pago</label>
+      <div class="chips" id="otpago-metodo-chips">
+        <div class="chip" data-val="Efectivo">Efectivo</div>
+        <div class="chip" data-val="Yape">Yape</div>
+        <div class="chip" data-val="Plin">Plin</div>
+        <div class="chip" data-val="Transferencia">Transferencia</div>
+      </div>
+      <button class="btn" style="margin-top:12px;" onclick="addOtPago()">+ Registrar pago</button>
+      <h4 style="margin:18px 0 8px;">Historial</h4>
+      <div id="otpago-list"></div>
+    </div>
+    <div class="detail-modal-foot"><button class="btn secondary" onclick="closeOtPagos()">Cerrar</button></div>
+  </div>
+</div>
+
 <!-- ADD VEHICLE TO CLIENT MODAL -->
 <div class="modal-overlay" id="modal-add-vehiculo" style="z-index:200;">
+
   <div class="modal-box">
     <h3 style="margin-bottom:12px;">Agregar vehículo</h3>
     <label>Vehículo</label>
@@ -1363,6 +1391,13 @@
       <button class="btn secondary" id="btn-pin-toggle" onclick="openPinSetup()">Configurar PIN</button>
     </div>
 
+    <div class="settings-block" id="biometric-block" style="display:none;">
+      <h4>Desbloqueo con huella digital</h4>
+      <div class="desc">Usa la huella o el desbloqueo facial de tu celular en vez del PIN. Requiere tener un PIN configurado como respaldo.</div>
+      <div id="biometric-status" style="font-size:13px; margin-bottom:10px;"></div>
+      <button class="btn secondary" id="btn-biometric-toggle" onclick="toggleBiometric()">Activar huella</button>
+    </div>
+
     <div class="settings-block">
       <h4>Reiniciar sistema</h4>
       <div class="desc">Borra todos los datos del taller (ingresos, gastos, pagos, personal, cotizaciones, órdenes, citas y clientes) y deja la app como recién instalada. Se te pedirá tu PIN de seguridad para confirmar.</div>
@@ -1421,7 +1456,7 @@
       <div class="desc" style="margin-top:10px;">En tu otro celular, abre Ajustes, pega este mismo código en "Código de taller" y toca "Usar este código". Desde ese momento ambos verán la misma información.</div>
     </div>
 
-    <div style="text-align:center; color:var(--muted); font-size:11.5px; padding:18px 0 6px;">Mecánica Expert · v5.25.0</div>
+    <div style="text-align:center; color:var(--muted); font-size:11.5px; padding:18px 0 6px;">Mecánica Expert · v5.27.0</div>
 
   </div>
 
@@ -1509,6 +1544,7 @@ const ICONS = {
   download: svgIcon('<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 19h16"/>'),
   car: svgIcon('<path d="M3 13l1.5-4.5A2 2 0 0 1 6.4 7h11.2a2 2 0 0 1 1.9 1.5L21 13"/><rect x="2" y="13" width="20" height="6" rx="2"/><circle cx="7" cy="19" r="1.6"/><circle cx="17" cy="19" r="1.6"/>'),
   check: svgIcon('<path d="M4 12l5 5L20 6"/>'),
+  fingerprint: svgIcon('<path d="M12 3a6 6 0 0 0-6 6v2c0 3.5-1 6-2 7.5"/><path d="M12 3a6 6 0 0 1 6 6v3c0 1 .1 2 .3 3"/><path d="M9 21c1-1.5 1.5-3 1.5-5V9a1.5 1.5 0 0 1 3 0v6"/><path d="M6 21a13 13 0 0 0 1.5-6V9a4.5 4.5 0 0 1 9 0"/><path d="M13.5 21.5c-.5-1-.7-2-.7-3.5v-3"/>'),
 };
 let currentUser = null; // {id, nombre, rol} del trabajador activo, o null = Dueño/Admin
 let pendingWhoAmI = null;
@@ -1913,6 +1949,15 @@ async function init(){
   if(!DATA.settings.otCounter) DATA.settings.otCounter = 1;
   if(!DATA.settings.cotizCounter) DATA.settings.cotizCounter = 1;
 
+  // Migración: órdenes creadas antes del sistema de pagos parciales conservan su cobro como un pago único
+  DATA.ordenes.forEach(x=>{
+    if(!Array.isArray(x.pagos)){
+      x.pagos = (x.cobrado && Number(x.total)>0)
+        ? [{id:uid(), fecha: x.fechaEntrega || x.fecha || todayISO(), monto: x.total, metodo:'Efectivo', ingresoId: x.ingresoAutoId || null}]
+        : [];
+    }
+  });
+
   if(cloudDb){ cloudSyncStatus = 'ok'; cloudLastSync = new Date(); }
   updateSyncStatusUI();
 
@@ -1931,7 +1976,9 @@ async function init(){
   setupChips('cotiz-estado-chips', 'cotizEstado');
   setupChips('ot-estado-chips', 'otEstado');
   setupChips('cita-estado-chips', 'citaEstado');
+  setupChips('otpago-metodo-chips', 'otPagoMetodo');
   buildPinKeypad();
+  checkBiometricSupport();
 
   renderTrabajadorChips();
   renderMecanicoChips();
@@ -2297,7 +2344,15 @@ function startPinFlow(mode){
   if(mode==='create'){ titleEl.textContent='Crea un PIN'; subEl.textContent='Elige 4 dígitos para proteger la app.'; }
   if(mode==='confirm'){ titleEl.textContent='Confirma tu PIN'; subEl.textContent='Ingresa el mismo PIN otra vez.'; }
   if(mode==='reset'){ titleEl.textContent='PIN de seguridad'; subEl.textContent='Ingresa tu PIN para reiniciar el sistema. Esta acción borrará todos los datos.'; }
+  const bioBtn = document.getElementById('lock-biometric-btn');
+  if(bioBtn){
+    const mostrar = mode==='unlock' && !!DATA.settings.biometricCredId;
+    bioBtn.style.display = mostrar ? 'inline-flex' : 'none';
+  }
   document.getElementById('screen-lock').classList.add('show');
+  if(mode==='unlock' && DATA.settings.biometricCredId){
+    setTimeout(attemptBiometricUnlock, 350);
+  }
 }
 async function handlePinComplete(){
   if(pinMode==='workerpin'){
@@ -2328,11 +2383,7 @@ async function handlePinComplete(){
       }
     }
     if(ok){
-      document.getElementById('screen-lock').classList.remove('show');
-      toast('Bienvenido de nuevo');
-      checkBackupReminder();
-      checkGastosFijosReminder();
-      if(!currentUser) startWhoAmI();
+      unlockSuccess();
     } else {
       toast('PIN incorrecto');
       pinBuffer=''; updatePinDots();
@@ -2418,6 +2469,101 @@ function updatePinStatus(){
   const btn = document.getElementById('btn-pin-toggle');
   if(DATA.settings.pinHash || DATA.settings.pin){ el.textContent='PIN activado.'; btn.textContent='Quitar PIN'; }
   else{ el.textContent='Sin PIN configurado.'; btn.textContent='Configurar PIN'; }
+  updateBiometricBlockVisibility();
+}
+function unlockSuccess(){
+  document.getElementById('screen-lock').classList.remove('show');
+  toast('Bienvenido de nuevo');
+  checkBackupReminder();
+  checkGastosFijosReminder();
+  if(!currentUser) startWhoAmI();
+}
+
+/* ---------- DESBLOQUEO CON HUELLA (WebAuthn) ---------- */
+// Usa el autenticador biométrico de la plataforma (huella/Face ID) del propio
+// celular a través de la Web Authentication API. La credencial se crea y valida
+// localmente en el dispositivo; no depende de ningún servidor. El PIN siempre
+// queda disponible como respaldo por si la huella falla o el usuario cambia de equipo.
+function b64urlEncode(buf){
+  return btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function b64urlDecode(str){
+  str = str.replace(/-/g,'+').replace(/_/g,'/');
+  while(str.length % 4) str += '=';
+  const bin = atob(str);
+  const arr = new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i] = bin.charCodeAt(i);
+  return arr.buffer;
+}
+let biometricSupported = false;
+async function checkBiometricSupport(){
+  try{
+    if(!window.PublicKeyCredential || !navigator.credentials) { biometricSupported = false; return; }
+    biometricSupported = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  }catch(e){ biometricSupported = false; }
+  updateBiometricBlockVisibility();
+}
+function updateBiometricBlockVisibility(){
+  const block = document.getElementById('biometric-block');
+  if(!block) return;
+  const tienePin = !!(DATA.settings.pinHash || DATA.settings.pin);
+  block.style.display = (biometricSupported && tienePin) ? '' : 'none';
+  updateBiometricStatus();
+}
+function updateBiometricStatus(){
+  const el = document.getElementById('biometric-status');
+  const btn = document.getElementById('btn-biometric-toggle');
+  if(!el || !btn) return;
+  if(DATA.settings.biometricCredId){ el.textContent='Huella activada. Podrás desbloquear con tu huella o rostro.'; btn.textContent='Desactivar huella'; }
+  else{ el.textContent='Sin huella configurada.'; btn.textContent='Activar huella'; }
+}
+async function toggleBiometric(){
+  if(DATA.settings.biometricCredId){
+    delete DATA.settings.biometricCredId;
+    await save('settings', DATA.settings);
+    updateBiometricStatus();
+    toast('Huella desactivada');
+    return;
+  }
+  try{
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const userId = crypto.getRandomValues(new Uint8Array(16));
+    const cred = await navigator.credentials.create({
+      publicKey: {
+        challenge,
+        rp: { name: DATA.settings.taller || 'Mecánica Expert' },
+        user: { id: userId, name: 'taller', displayName: DATA.settings.taller || 'Mecánica Expert' },
+        pubKeyCredParams: [{type:'public-key', alg:-7}, {type:'public-key', alg:-257}],
+        authenticatorSelection: { authenticatorAttachment:'platform', userVerification:'required' },
+        timeout: 60000
+      }
+    });
+    if(!cred){ toast('No se pudo activar la huella', true); return; }
+    DATA.settings.biometricCredId = b64urlEncode(cred.rawId);
+    await save('settings', DATA.settings);
+    updateBiometricStatus();
+    toast('Huella activada');
+  }catch(e){
+    console.error(e);
+    toast('No se pudo activar la huella en este dispositivo', true);
+  }
+}
+async function attemptBiometricUnlock(){
+  if(!DATA.settings.biometricCredId) return;
+  try{
+    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const assertion = await navigator.credentials.get({
+      publicKey: {
+        challenge,
+        allowCredentials: [{ id: b64urlDecode(DATA.settings.biometricCredId), type:'public-key' }],
+        userVerification: 'required',
+        timeout: 60000
+      }
+    });
+    if(assertion){ unlockSuccess(); }
+  }catch(e){
+    // El usuario canceló o falló la huella: se queda en la pantalla de PIN, sin mostrar error agresivo.
+  }
 }
 
 /* ---------- CHIPS / NAV ---------- */
@@ -3260,7 +3406,7 @@ async function addOrden(){
       Object.assign(item, {fecha, cliente, telefono, vehiculo, placa, km, problema, mecanico, estado, nota, items:[...otItems], total, foto, fotoSalida});
       if(estado==='Entregado' && !item.fechaEntrega) item.fechaEntrega = todayISO();
     } else {
-      DATA.ordenes.unshift({id:uid(), numero:DATA.settings.otCounter, fecha, cliente, telefono, vehiculo, placa, km, problema, mecanico, estado, nota, items:[...otItems], total, foto, fotoSalida, fechaEntrega:null, creadoPor: currentUser ? currentUser.nombre : 'Dueño'});
+      DATA.ordenes.unshift({id:uid(), numero:DATA.settings.otCounter, fecha, cliente, telefono, vehiculo, placa, km, problema, mecanico, estado, nota, items:[...otItems], total, foto, fotoSalida, fechaEntrega:null, pagos:[], creadoPor: currentUser ? currentUser.nombre : 'Dueño'});
       DATA.settings.otCounter++;
       await save('settings', DATA.settings);
     }
@@ -3318,54 +3464,115 @@ function editOrden(id){
   switchTab('ot');
   window.scrollTo({top:0, behavior:'smooth'});
 }
-function registrarIngresoDeOrden(x){
-  const servicio = (x.items||[]).map(i=>i.desc).join(', ') || 'Servicio de taller';
+function pagosTotalOt(x){ return (x.pagos||[]).reduce((s,p)=>s+Number(p.monto||0),0); }
+function saldoOt(x){ return Math.max(0, Number(x.total||0) - pagosTotalOt(x)); }
+let otPagosCurrentId = null;
+function openOtPagos(id){
+  const x = DATA.ordenes.find(o=>o.id===id);
+  if(!x) return;
+  otPagosCurrentId = id;
+  document.getElementById('otpago-fecha').value = todayISO();
+  document.getElementById('otpago-monto').value = '';
+  selectChipValue('otpago-metodo-chips', 'otPagoMetodo', 'Efectivo');
+  renderOtPagosModal();
+  document.getElementById('modal-ot-pagos').classList.add('show');
+}
+function closeOtPagos(){
+  document.getElementById('modal-ot-pagos').classList.remove('show');
+  otPagosCurrentId = null;
+}
+function renderOtPagosModal(){
+  const x = DATA.ordenes.find(o=>o.id===otPagosCurrentId);
+  if(!x) return;
+  const pagado = pagosTotalOt(x);
+  const saldo = saldoOt(x);
+  document.getElementById('otpago-resumen').innerHTML = `
+    <div class="row2"><div>Total<br><b>${fmt(x.total)}</b></div><div>Pagado<br><b style="color:var(--green)">${fmt(pagado)}</b></div></div>
+    <div style="margin-top:8px;">Saldo pendiente: <b style="color:${saldo>0?'var(--danger,#e5484d)':'var(--green)'}">${fmt(saldo)}</b></div>
+  `;
+  const list = document.getElementById('otpago-list');
+  list.innerHTML = (x.pagos||[]).length ? '' : '<div style="color:var(--muted); font-size:12.5px;">Sin pagos registrados.</div>';
+  (x.pagos||[]).slice().reverse().forEach(p=>{
+    list.innerHTML += `<div class="ticket" style="padding:8px 10px;">
+      <div class="info"><div class="t1">${fmt(p.monto)} <span class="tag">${escapeHtml(p.metodo||'')}</span></div><div class="t2">${fmtDate(p.fecha)}</div></div>
+      <button class="iconbtn del" onclick="removeOtPago('${x.id}','${p.id}')" aria-label="Eliminar">${ICONS.trash}</button>
+    </div>`;
+  });
+}
+async function registrarPagoOt(x, fecha, monto, metodo){
+  if(!x.pagos) x.pagos = [];
+  const pago = {id:uid(), fecha, monto, metodo};
+  x.pagos.push(pago);
   const vehTxt = [x.vehiculo, x.placa].filter(Boolean).join(' - ');
+  const numero = 'OT-' + String(x.numero).padStart(4,'0');
   const ing = {
-    id: uid(), fecha: todayISO(), cliente: x.cliente,
-    servicio: vehTxt ? `${servicio} (${vehTxt})` : servicio,
-    monto: x.total, pago: 'Efectivo',
-    vehiculo: x.vehiculo || '', placa: x.placa || '', origenTipo:'orden', origenId: x.id,
+    id: uid(), fecha, cliente: x.cliente,
+    servicio: vehTxt ? `Pago ${numero} (${vehTxt})` : `Pago ${numero}`,
+    monto, pago: metodo,
+    vehiculo: x.vehiculo || '', placa: x.placa || '', origenTipo:'orden-pago', origenId: x.id, pagoId: pago.id,
     creadoPor: currentUser ? currentUser.nombre : 'Dueño'
   };
   DATA.ingresos.unshift(ing);
-  x.cobrado = true;
-  x.ingresoAutoId = ing.id;
+  pago.ingresoId = ing.id;
+  x.cobrado = saldoOt(x) <= 0;
+  return pago;
 }
-function revertirIngresoDeOrden(x){
-  if(!x.ingresoAutoId) return false;
-  const idx = DATA.ingresos.findIndex(i=>i.id===x.ingresoAutoId);
-  if(idx>-1){
-    if(diaCerrado(DATA.ingresos[idx].fecha)) return false; // no tocar movimientos de un día ya cerrado
-    DATA.ingresos.splice(idx,1);
+async function addOtPago(){
+  const x = DATA.ordenes.find(o=>o.id===otPagosCurrentId);
+  if(!x) return;
+  const fecha = document.getElementById('otpago-fecha').value || todayISO();
+  const monto = parseFloat(document.getElementById('otpago-monto').value);
+  const metodo = selected.otPagoMetodo || 'Efectivo';
+  if(!monto || monto<=0){ toast('Ingresa un monto válido', true); return; }
+  if(bloqueaSiCerrado(fecha)) return;
+  await registrarPagoOt(x, fecha, monto, metodo);
+  await save('ordenes', DATA.ordenes);
+  await save('ingresos', DATA.ingresos);
+  populateMonthFilters();
+  document.getElementById('otpago-monto').value = '';
+  toast('Pago registrado');
+  renderOtPagosModal();
+  renderAll();
+}
+async function removeOtPago(otId, pagoId){
+  const x = DATA.ordenes.find(o=>o.id===otId);
+  if(!x) return;
+  const p = (x.pagos||[]).find(pp=>pp.id===pagoId);
+  if(!p) return;
+  if(diaCerrado(p.fecha)){ toast('No se puede eliminar: ese día de caja ya está cerrado', true); return; }
+  if(!confirm('¿Eliminar este pago? También se quitará de tu caja.')) return;
+  x.pagos = x.pagos.filter(pp=>pp.id!==pagoId);
+  if(p.ingresoId){
+    const idx = DATA.ingresos.findIndex(i=>i.id===p.ingresoId);
+    if(idx>-1) DATA.ingresos.splice(idx,1);
   }
-  x.cobrado = false;
-  x.ingresoAutoId = null;
-  return true;
+  x.cobrado = saldoOt(x) <= 0;
+  await save('ordenes', DATA.ordenes);
+  await save('ingresos', DATA.ingresos);
+  populateMonthFilters();
+  toast('Pago eliminado');
+  renderOtPagosModal();
+  renderAll();
 }
+
 async function updateOrdenEstado(id, nuevoEstado){
   const x = DATA.ordenes.find(o=>o.id===id);
   if(!x) return;
-  const estadoAnterior = x.estado;
   x.estado = nuevoEstado;
   if(nuevoEstado==='Entregado' && !x.fechaEntrega) x.fechaEntrega = todayISO();
 
   let msg = 'Estado actualizado';
-  // Al marcar la orden como "Listo" se registra automáticamente el ingreso en caja (una sola vez por orden)
-  if((nuevoEstado==='Listo' || nuevoEstado==='Entregado') && !x.cobrado && Number(x.total)>0){
+  const saldo = saldoOt(x);
+  // Al marcar "Listo" o "Entregado", si queda saldo pendiente, se ofrece cobrarlo como pago final
+  if((nuevoEstado==='Listo' || nuevoEstado==='Entregado') && saldo > 0){
     if(bloqueaSiCerrado(todayISO())){
-      msg = 'Estado actualizado. La caja de hoy está cerrada: registra el ingreso manualmente.';
-    } else {
-      registrarIngresoDeOrden(x);
+      msg = 'Estado actualizado. La caja de hoy está cerrada: registra el pago manualmente.';
+    } else if(confirm(`Queda un saldo pendiente de ${fmt(saldo)} para ${x.cliente}. ¿Registrarlo ahora como pago (efectivo)?`)){
+      await registrarPagoOt(x, todayISO(), saldo, 'Efectivo');
       await save('ingresos', DATA.ingresos);
       populateMonthFilters();
-      msg = `Orden lista · ingreso de ${fmt(x.total)} registrado en caja`;
+      msg = `Estado actualizado · pago de ${fmt(saldo)} registrado en caja`;
     }
-  } else if(estadoAnterior==='Listo' && nuevoEstado!=='Listo' && nuevoEstado!=='Entregado' && x.cobrado){
-    // Si se revierte el estado desde "Listo" hacia atrás, se revierte el ingreso automático (si el día sigue abierto)
-    const revertido = revertirIngresoDeOrden(x);
-    await save('ingresos', DATA.ingresos);
-    msg = revertido ? 'Estado actualizado. Se revirtió el ingreso automático de la orden.' : 'Estado actualizado. El ingreso no se revirtió porque ese día ya está cerrado.';
   }
 
   await save('ordenes', DATA.ordenes);
@@ -3376,20 +3583,20 @@ async function entregarYCobrarOrden(id){
   if(isMecanico()){ toast('Tu rol no puede registrar cobros', true); return; }
   const x = DATA.ordenes.find(o=>o.id===id);
   if(!x) return;
-  const yaCobrada = !!x.cobrado;
-  if(!yaCobrada){
+  const saldo = saldoOt(x);
+  if(saldo > 0){
     if(bloqueaSiCerrado(todayISO())) return;
-    if(!confirm(`¿Marcar como entregado y registrar un ingreso de ${fmt(x.total)} para ${x.cliente}?`)) return;
-    registrarIngresoDeOrden(x);
+    if(!confirm(`¿Marcar como entregado y registrar el saldo pendiente de ${fmt(saldo)} para ${x.cliente}?`)) return;
+    await registrarPagoOt(x, todayISO(), saldo, 'Efectivo');
     await save('ingresos', DATA.ingresos);
     populateMonthFilters();
   } else {
-    if(!confirm(`¿Marcar la orden de ${x.cliente} como entregada? El ingreso ya fue registrado cuando se marcó "Listo".`)) return;
+    if(!confirm(`¿Marcar la orden de ${x.cliente} como entregada? Ya está pagada por completo.`)) return;
   }
   x.estado = 'Entregado';
   x.fechaEntrega = todayISO();
   await save('ordenes', DATA.ordenes);
-  toast(yaCobrada ? 'Orden entregada' : 'Orden entregada e ingreso registrado');
+  toast(saldo>0 ? 'Orden entregada y saldo cobrado' : 'Orden entregada');
   renderAll();
 }
 function buildOrdenText(x){
@@ -3409,6 +3616,12 @@ function buildOrdenText(x){
     lines.push('');
     lines.push(`*Total: ${fmt(x.total)}*`);
     lines.push('_(Precio incluye IGV)_');
+    const pagado = pagosTotalOt(x);
+    if(pagado>0){
+      const saldo = saldoOt(x);
+      lines.push(`Pagado: ${fmt(pagado)}`);
+      lines.push(saldo>0 ? `*Saldo pendiente: ${fmt(saldo)}*` : '✅ Pagado por completo');
+    }
   }
   return lines.join('\n');
 }
@@ -5269,7 +5482,7 @@ function renderAll(){
         <div class="amt">
           <div class="n">${fmt(x.total)}</div>
           <div class="icon-btns">
-            ${x.estado!=='Convertida' ? `<button class="iconbtn" style="color:var(--green);" onclick="convertirCotizacionAIngreso('${x.id}')" title="Convertir a ingreso">${ICONS.check}</button>` : ''}
+            ${x.estado!=='Convertida' ? `<button class="iconbtn" style="color:var(--green);" onclick="convertirCotizacionAIngreso('${x.id}')" title="Convertir a ingreso">${ICONS.cash}</button>` : ''}
             <button class="iconbtn" style="color:#25D366;" onclick="sendCotizacionWhatsapp('${x.id}')" title="Enviar por WhatsApp">${ICONS.whatsapp}</button>
             <button class="iconbtn" style="color:var(--accent);" onclick="exportCotizacionPDF('${x.id}')" title="Descargar PDF">${ICONS.download}</button>
             <button class="iconbtn edit" onclick="editCotizacion('${x.id}')" aria-label="Editar">${ICONS.edit}</button>
@@ -5313,7 +5526,10 @@ function renderAll(){
           <div class="t2">${escapeHtml(subParts.join(' · '))}</div>
           <div class="t3">
             <span class="tag">${fmtDate(x.fecha)}</span>
-            ${x.cobrado ? `<span class="tag" style="background:var(--green); color:#fff; border-color:var(--green);">💰 Cobrado</span>` : ''}
+            ${(()=>{ const saldo = saldoOt(x); const pagado = pagosTotalOt(x);
+              if(saldo<=0 && pagado>0) return `<span class="tag" style="background:var(--green); color:#fff; border-color:var(--green);">💰 Pagado</span>`;
+              if(pagado>0) return `<span class="tag" style="background:var(--purple); color:#fff; border-color:var(--purple);">Saldo: ${fmt(saldo)}</span>`;
+              return ''; })()}
             <select class="estado-select" style="background-color:${otEstadoColor[x.estado]||'var(--muted)'}; color:#fff;" onchange="updateOrdenEstado('${x.id}', this.value)">
               ${otEstados.map(e=>`<option value="${e}" ${x.estado===e?'selected':''}>${e}</option>`).join('')}
             </select>
@@ -5322,7 +5538,8 @@ function renderAll(){
         <div class="amt">
           <div class="n">${fmt(x.total)}</div>
           <div class="icon-btns">
-            ${(!mecanicoActivo && x.estado!=='Entregado') ? `<button class="iconbtn" style="color:var(--green);" onclick="entregarYCobrarOrden('${x.id}')" title="${x.cobrado?'Marcar como entregado':'Entregar y cobrar'}">${ICONS.check}</button>` : ''}
+            ${!mecanicoActivo ? `<button class="iconbtn" style="color:var(--green);" onclick="openOtPagos('${x.id}')" title="Registrar / ver pagos">${ICONS.cash}</button>` : ''}
+            ${(!mecanicoActivo && x.estado!=='Entregado') ? `<button class="iconbtn" style="color:var(--green);" onclick="entregarYCobrarOrden('${x.id}')" title="${saldoOt(x)<=0?'Marcar como entregado':'Entregar y cobrar saldo'}">${ICONS.check}</button>` : ''}
             <button class="iconbtn" style="color:#25D366;" onclick="sendOrdenWhatsapp('${x.id}')" title="Enviar por WhatsApp">${ICONS.whatsapp}</button>
             <button class="iconbtn" style="color:var(--accent);" onclick="exportOrdenPDF('${x.id}')" title="Descargar PDF">${ICONS.download}</button>
             ${!mecanicoActivo ? `<button class="iconbtn edit" onclick="editOrden('${x.id}')" aria-label="Editar">${ICONS.edit}</button>` : ''}
