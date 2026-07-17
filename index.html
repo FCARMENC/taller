@@ -1456,7 +1456,7 @@
       <div class="desc" style="margin-top:10px;">En tu otro celular, abre Ajustes, pega este mismo código en "Código de taller" y toca "Usar este código". Desde ese momento ambos verán la misma información.</div>
     </div>
 
-    <div style="text-align:center; color:var(--muted); font-size:11.5px; padding:18px 0 6px;">Mecánica Expert · v5.27.0</div>
+    <div style="text-align:center; color:var(--muted); font-size:11.5px; padding:18px 0 6px;">Mecánica Expert · v5.28.0</div>
 
   </div>
 
@@ -3003,6 +3003,10 @@ function buildCotizacionText(x){
   if(x.nota) { lines.push(''); lines.push(`Nota: ${x.nota}`); }
   return lines.join('\n');
 }
+function isIOSDevice(){
+  return /iPad|iPhone|iPod/.test(navigator.userAgent || '') ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPadOS se identifica como Mac
+}
 async function sendCotizacionWhatsapp(id){
   const x = DATA.cotizaciones.find(c=>c.id===id);
   if(!x) return;
@@ -3029,7 +3033,15 @@ async function sendCotizacionWhatsapp(id){
 
   if(navigator.canShare && navigator.canShare({ files:[file] })){
     try{
-      await navigator.share({ files:[file], title:numero, text });
+      // En iOS, WhatsApp no combina bien archivo + texto: los manda como dos
+      // mensajes separados (el texto suelto y el PDF aparte). Ahí se comparte
+      // solo el PDF (ya trae toda la info de la cotización adentro).
+      // En Android sí se pueden combinar sin problema.
+      if(isIOSDevice()){
+        await navigator.share({ files:[file] });
+      } else {
+        await navigator.share({ files:[file], title:numero, text });
+      }
       return;
     }catch(e){
       if(e && e.name === 'AbortError') return; // el usuario canceló el selector de compartir
@@ -5482,7 +5494,6 @@ function renderAll(){
         <div class="amt">
           <div class="n">${fmt(x.total)}</div>
           <div class="icon-btns">
-            ${x.estado!=='Convertida' ? `<button class="iconbtn" style="color:var(--green);" onclick="convertirCotizacionAIngreso('${x.id}')" title="Convertir a ingreso">${ICONS.cash}</button>` : ''}
             <button class="iconbtn" style="color:#25D366;" onclick="sendCotizacionWhatsapp('${x.id}')" title="Enviar por WhatsApp">${ICONS.whatsapp}</button>
             <button class="iconbtn" style="color:var(--accent);" onclick="exportCotizacionPDF('${x.id}')" title="Descargar PDF">${ICONS.download}</button>
             <button class="iconbtn edit" onclick="editCotizacion('${x.id}')" aria-label="Editar">${ICONS.edit}</button>
