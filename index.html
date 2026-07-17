@@ -3048,11 +3048,23 @@ async function sendCotizacionWhatsapp(id){
     }
   }
 
-  // Respaldo: el navegador no permite compartir archivos (ej. computadora).
-  // Se descarga el PDF y se abre WhatsApp con el texto para adjuntarlo manualmente.
+  // Respaldo: no se pudo compartir el archivo directo (ej. computadora, o
+  // iPhone con la app agregada a pantalla de inicio, donde el Web Share API
+  // de iOS falla para archivos). Antes esto disparaba SIEMPRE dos acciones
+  // automáticas (descargar PDF + abrir WhatsApp con el texto), y por eso
+  // terminaba mandándose duplicado. Ahora se pregunta primero: por defecto
+  // solo se descarga el PDF (ya trae toda la info), y solo si el usuario
+  // confirma que también quiere el texto se abre WhatsApp con él.
   downloadBlob(blob, filename);
-  toast('PDF descargado. Adjúntalo al chat de WhatsApp que se va a abrir.');
-  window.open(waTextUrl, '_blank');
+  const tambienTexto = window.confirm(
+    'PDF descargado.\n\n¿Quieres ADEMÁS abrir WhatsApp con el texto de la cotización?\n\n' +
+    'Elige "Cancelar" si solo vas a adjuntar el PDF (recomendado, evita mensajes duplicados).'
+  );
+  if(tambienTexto){
+    window.open(waTextUrl, '_blank');
+  } else {
+    toast('PDF descargado. Adjúntalo al chat de WhatsApp.');
+  }
 }
 
 /* ---------- CRUD: CITAS / PROGRAMAR TRABAJOS ---------- */
